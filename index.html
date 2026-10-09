@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>신흥정밀 물류 대시보드</title>
+    <!-- Tailwind CSS, Chart.js, SheetJS, FontAwesome CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 font-sans text-gray-800">
+
+    <div class="flex h-screen overflow-hidden">
+        <!-- 사이드바 -->
+        <aside class="w-64 bg-slate-900 text-white flex flex-col">
+            <div class="p-5 text-xl font-bold tracking-wider border-b border-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-boxes-stacked text-blue-400"></i> 신흥정밀 물류
+            </div>
+            <nav class="flex-1 p-4 space-y-1">
+                <button onclick="switchTab('delivery')" id="nav-delivery" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 transition font-medium">
+                    <i class="fa-solid fa-truck"></i> 납품현황
+                </button>
+                <button onclick="switchTab('inventory')" id="nav-inventory" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 transition font-medium">
+                    <i class="fa-solid fa-warehouse"></i> 재고현황
+                </button>
+                <button onclick="switchTab('home')" id="nav-home" class="w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-blue-600 text-white transition font-medium">
+                    <i class="fa-solid fa-house"></i> 홈 (대시보드)
+                </button>
+            </nav>
+            <div class="p-4 border-t border-slate-800 text-xs text-slate-400">
+                <p>생산관리팀 출하관리 대시보드</p>
+            </div>
+        </aside>
+
+        <!-- 메인 콘텐츠 영역 -->
+        <main class="flex-1 flex flex-col overflow-y-auto">
+            <!-- 상단 헤더 및 엑셀 업로드 -->
+            <header class="bg-white border-b px-8 py-4 flex justify-between items-center shadow-sm">
+                <h1 id="page-title" class="text-xl font-bold text-slate-800">홈 대시보드</h1>
+                <div class="flex items-center gap-4">
+                    <label class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg cursor-pointer text-sm font-semibold shadow transition flex items-center gap-2">
+                        <i class="fa-solid fa-file-excel"></i> 엑셀 업로드
+                        <input type="file" id="excelFile" class="hidden" accept=".xlsx, .xls, .csv" onchange="handleExcelUpload(event)">
+                    </label>
+                    <span id="upload-status" class="text-xs text-gray-500">기본 샘플 데이터 적용 중</span>
+                </div>
+            </header>
+
+            <!-- 컨텐츠 컨테이너 -->
+            <div class="p-8 space-y-6">
+
+                <!-- 1. 홈 탭 -->
+                <section id="tab-home" class="space-y-6">
+                    <div class="grid grid-cols-4 gap-4">
+                        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-blue-500">
+                            <p class="text-sm text-gray-500">예상 아침재고</p>
+                            <p class="text-2xl font-bold mt-1">12,456 <span class="text-sm font-normal text-gray-400">EA</span></p>
+                        </div>
+                        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-emerald-500">
+                            <p class="text-sm text-gray-500">예상 입고량</p>
+                            <p class="text-2xl font-bold mt-1">8,232 <span class="text-sm font-normal text-gray-400">EA</span></p>
+                        </div>
+                        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-red-500">
+                            <p class="text-sm text-gray-500">예상 부족량</p>
+                            <p class="text-2xl font-bold text-red-600 mt-1">-3,864 <span class="text-sm font-normal text-gray-400">EA</span></p>
+                        </div>
+                        <div class="bg-white p-5 rounded-xl shadow-sm border-l-4 border-indigo-500">
+                            <p class="text-sm text-gray-500">계획 납품 건수</p>
+                            <p class="text-2xl font-bold mt-1">12 <span class="text-sm font-normal text-gray-400">건</span></p>
+                        </div>
+                    </div>
+                    <!-- 차트 영역 -->
+                    <div class="bg-white p-6 rounded-xl shadow-sm">
+                        <h3 class="font-bold text-lg mb-4">일별 재고 변동 트렌드</h3>
+                        <div class="h-72">
+                            <canvas id="trendChart"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 2. 납품현황 탭 -->
+                <section id="tab-delivery" class="space-y-6 hidden">
+                    <div class="bg-white p-6 rounded-xl shadow-sm">
+                        <h3 class="font-bold text-lg mb-4 text-blue-600"><i class="fa-solid fa-truck"></i> 납품현황 관리</h3>
+                        <p class="text-gray-600 mb-4">엑셀 파일을 업로드하시면 전체 납품 내역이 아래 테이블에 반영됩니다.</p>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse" id="deliveryTable">
+                                <thead>
+                                    <tr class="bg-gray-50 border-b text-sm text-gray-600">
+                                        <th class="p-3">고객사</th>
+                                        <th class="p-3">모델 / 품명</th>
+                                        <th class="p-3">신호코드</th>
+                                        <th class="p-3">납품계획 수량</th>
+                                        <th class="p-3">상태</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="text-sm divide-y" id="deliveryTableBody">
+                                    <tr>
+                                        <td class="p-3">삼성SDI</td>
+                                        <td class="p-3 font-semibold">INNER COVER B</td>
+                                        <td class="p-3 text-gray-500">V045-0126AA</td>
+                                        <td class="p-3">1,344</td>
+                                        <td class="p-3"><span class="bg-amber-100 text-amber-700 px-2 py-1 rounded text-xs font-bold">주의</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3">삼성SDI</td>
+                                        <td class="p-3 font-semibold">BOTTOM ASSY</td>
+                                        <td class="p-3 text-gray-500">V045-0020AA</td>
+                                        <td class="p-3">576</td>
+                                        <td class="p-3"><span class="bg-emerald-100 text-emerald-700 px-2 py-1 rounded text-xs font-bold">정상</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 3. 재고현황 탭 -->
+                <section id="tab-inventory" class="space-y-6 hidden">
+                    <div class="bg-white p-6 rounded-xl shadow-sm">
+                        <h3 class="font-bold text-lg mb-4 text-emerald-600"><i class="fa-solid fa-warehouse"></i> 재고현황 및 부족 Top 5</h3>
+                        <div class="grid grid-cols-2 gap-6">
+                            <div>
+                                <h4 class="font-semibold text-gray-700 mb-3">주요 품목 재고 상태</h4>
+                                <div class="space-y-3" id="inventoryList">
+                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                        <span>INNER COVER B</span>
+                                        <span class="text-red-600 font-bold">-2,688 (부족)</span>
+                                    </div>
+                                    <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                                        <span>BOTTOM ASSY</span>
+                                        <span class="text-red-600 font-bold">-1,344 (부족)</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-red-50 p-4 rounded-xl border border-red-200">
+                                <h4 class="font-bold text-red-700 mb-2"><i class="fa-solid fa-triangle-exclamation"></i> 긴급 조치 필요 품목</h4>
+                                <p class="text-sm text-red-600">현재 계획 대비 재고가 부족한 품목에 대해 출하 일정 및 생산 라인을 조율해 주세요.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- 스크립트 제어 영역 -->
+    <script>
+        // 탭 전환 함수 (납품현황 -> 재고현황 -> 홈 순서 반영)
+        function switchTab(tabName) {
+            document.getElementById('tab-home').classList.add('hidden');
+            document.getElementById('tab-delivery').classList.add('hidden');
+            document.getElementById('tab-inventory').classList.add('hidden');
+
+            document.getElementById('nav-home').className = "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 transition font-medium";
+            document.getElementById('nav-delivery').className = "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 transition font-medium";
+            document.getElementById('nav-inventory').className = "w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 transition font-medium";
+
+            if (tabName === 'home') {
+                document.getElementById('tab-home').classList.remove('hidden');
+                document.getElementById('nav-home').className = "w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-blue-600 text-white transition font-medium";
+                document.getElementById('page-title').innerText = "홈 대시보드";
+            } else if (tabName === 'delivery') {
+                document.getElementById('tab-delivery').classList.remove('hidden');
+                document.getElementById('nav-delivery').className = "w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-blue-600 text-white transition font-medium";
+                document.getElementById('page-title').innerText = "납품현황 관리";
+            } else if (tabName === 'inventory') {
+                document.getElementById('tab-inventory').classList.remove('hidden');
+                document.getElementById('nav-inventory').className = "w-full flex items-center gap-3 px-4 py-3 rounded-lg bg-blue-600 text-white transition font-medium";
+                document.getElementById('page-title').innerText = "재고현황 모니터링";
+            }
+        }
+
+        // 엑셀 업로드 처리 및 테이블 동적 반영 (SheetJS 활용)
+        function handleExcelUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const jsonRows = XLSX.utils.sheet_to_json(worksheet);
+
+                if (jsonRows.length > 0) {
+                    const tbody = document.getElementById('deliveryTableBody');
+                    tbody.innerHTML = ''; // 기존 샘플 초기화
+
+                    jsonRows.forEach(row => {
+                        const tr = document.createElement('tr');
+                        tr.className = "border-b hover:bg-gray-50";
+                        tr.innerHTML = `
+                            <td class="p-3">${row['고객사'] || row['customer'] || '-'}</td>
+                            <td class="p-3 font-semibold">${row['모델'] || row['품명'] || row['model'] || '-'}</td>
+                            <td class="p-3 text-gray-500">${row['신호코드'] || row['code'] || '-'}</td>
+                            <td class="p-3">${row['수량'] || row['계획수량'] || row['qty'] || '0'}</td>
+                            <td class="p-3"><span class="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">업로드됨</span></td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+
+                document.getElementById('upload-status').innerText = `업로드 완료: ${file.name} (${jsonRows.length}행)`;
+                alert(`엑셀 파일(${file.name})이 성공적으로 반영되었습니다! 납품현황 탭에서 확인해 보세요.`);
+                switchTab('delivery'); // 업로드 후 자동으로 납품현황 탭으로 이동
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 일별 재고 변동 트렌드 차트 생성
+        const ctx = document.getElementById('trendChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['10/01', '10/02', '10/03', '10/04', '10/05', '10/06', '10/07', '10/08'],
+                datasets: [{
+                    label: '일별 재고 추이 (EA)',
+                    data: [12000, 11800, 12450, 12200, 12100, 12350, 12456, 12456],
+                    borderColor: '#3b82f6',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    fill: true,
+                    tension: 0.3
+                }]
+            },
+            options: { responsive: true, maintainAspectRatio: false }
+        });
+    </script>
+</body>
+</html>
